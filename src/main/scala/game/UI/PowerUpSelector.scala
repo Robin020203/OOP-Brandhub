@@ -7,20 +7,21 @@ import java.awt.Graphics2D
 
 
 class PowerUpSelector extends Drawable {
-  var isActive: Boolean = false // default inactive
+  var activePowerUps: Set[PowerUpType] = Set() // default empty
   private val allPowerUpTypes = PowerUpType.values
 
   override def draw(g: Graphics2D): Unit = {
     // Loop over every power up and draw image on right place
     this.allPowerUpTypes.zipWithIndex.foreach { (powerUpType, index) =>
 
-      val imageName = if (this.isActive) {
+      val isActive = this.activePowerUps.contains(powerUpType)
+      val imageName = if (isActive) {
         powerUpType.activeImage
       } else {
         powerUpType.inactiveImage
       }
-
       val image = gamelib.AssetsLoader.loadImage(imageName)
+      
       val cellWidth = HiveGame.cellWidth
       val cellHeight = HiveGame.cellHeight
       val row = HiveGame.gameRows // UI row

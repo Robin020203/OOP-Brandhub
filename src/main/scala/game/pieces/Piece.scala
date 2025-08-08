@@ -16,7 +16,12 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
   val player: Player // override
   def image: String // override
 
-
+  // for PowerUp Class
+  def updatePosition(newRow: Int, newColumn: Int): Unit = {
+    this.row = newRow
+    this.column = newColumn
+  }
+  
   /** Draw a piece */
 
   def draw(g: Graphics2D): Unit = {

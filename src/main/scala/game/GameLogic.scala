@@ -69,6 +69,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
             if (piece.player == this.currentPlayer) {
               this.selectedPiece = Some(piece)
               piece.isSelected = true
+              this.updatePowerUpStatus(Some(piece))
               this.panel.repaint()
               println(s"Player ${this.currentPlayer} selected piece on [${piece.row}, ${piece.column}]")
             }
@@ -86,6 +87,8 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
       // A piece is selected
       case Some(s_piece) =>
+        // After action, deactivate all power ups
+        this.updatePowerUpStatus(None)
         // Click on a square
         clickedSquare match {
 
@@ -244,6 +247,17 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     this.panel.addDrawables(List(effect).asJava) // List Java ≠ List Scala
     // Cons effect to list
     this.captureEffects = effect :: this.captureEffects
+  }
+
+  private def updatePowerUpStatus(selectedPiece: Option[Piece]): Unit = {
+    var activePowerUps = Set[powerups.PowerUpType]()
+
+    selectedPiece.foreach { piece =>
+      // TODO
+      activePowerUps = powerups.PowerUpType.values.toSet
+    }
+    this.powerUpSelector.activePowerUps = activePowerUps
+
   }
 
 }
