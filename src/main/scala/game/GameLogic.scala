@@ -9,7 +9,7 @@ import scala.jdk.CollectionConverters.*
 
 
 
-class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: Int) {
+class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: Int, val powerUpSelector: UI.PowerUpSelector) {
   var currentPlayer: Player = Player.Attacker // Will change between Attacker - Defender
   var selectedPiece: Option[Piece] = None // Can change to Some(piece) or None
   var captureEffects: List[CaptureEffect] = List() // Can change to List of effects

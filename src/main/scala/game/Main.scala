@@ -33,9 +33,6 @@ object HiveGame {
     // logicGrid that stores information
     val logicGrid = new Grid[Piece](this.numRows, this.numColumns)
     println(s"An empty ${logicGrid.rows}x${logicGrid.columns} grid is made.")
-    // connect logicGrid to visual panel
-    val gameLogic = new GameLogic(logicGrid, panel, this.gameRows)
-
 
     // All start positions of pieces
     // defence (yellow)
@@ -64,8 +61,16 @@ object HiveGame {
     allPieces.foreach { piece =>
       logicGrid.addPiece(piece, piece.row, piece.column)
     }
+    // Power up selector
+    val powerUpSelector = new UI.PowerUpSelector()
+
+    val allDrawables: List[Drawable] = allPieces :+ powerUpSelector
+
     // Draw all pieces on the board
-    panel.addDrawables(allPieces.asJava) // Visual panel (asJava gamelib)
+    panel.addDrawables(allDrawables.asJava) // Visual panel (asJava gamelib)
+
+    // connect logicGrid to visual panel
+    val gameLogic = new GameLogic(logicGrid, panel, this.gameRows, powerUpSelector)
 
 
     // Mouseclick
