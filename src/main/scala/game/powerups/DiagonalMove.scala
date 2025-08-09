@@ -5,6 +5,8 @@ import game.Grid
 
 class DiagonalMove(power: Piece) extends PowerUp(power, PowerUpType.DiagonalMove) {
 
+  override def canReceivePowerUp: Boolean = true
+
   override def isValidMove(grid: Grid[Piece], toRow: Int, toColumn: Int): Boolean = {
     // Old rules apply
     val wasValidBefore = this.power.isValidMove(grid, toRow, toColumn)
