@@ -5,6 +5,8 @@ import game.pieces.*
 import game.Grid
 import game.pieces.Player.{Attacker, Defender}
 import game.effects.CaptureEffect
+import game.powerups.DiagonalMove
+
 import scala.jdk.CollectionConverters.*
 
 
@@ -87,51 +89,81 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
       // A piece is selected
       case Some(s_piece) =>
-        // After action, deactivate all power ups
+        // deactivate all power ups (choise phase over)
         this.updatePowerUpStatus(None)
-        // Click on a square
-        clickedSquare match {
 
-          // Click on an other piece
-          case Some(piece) =>
-            this.selectedPiece = None
-            s_piece.isSelected = false
-            this.panel.repaint()
-            println(s"Selection canceled: Player ${this.currentPlayer} selected a non-empty field")
-          // Click on an empty cell
-          case None =>
-            // Only if valid move, move the piece
-            if (this.isValidMove(s_piece, row, column)) {
-              println(s"Moved to[$row, $column]")
-              this.logicGrid.movePiece(s_piece.row, s_piece.column, row, column)
-              s_piece.row = row
-              s_piece.column = column
+        // 1) UI bar => power up
+        if (row >= this.gameRows) {
+          val allPowerUpTypes = powerups.PowerUpType.values
+          if (column < allPowerUpTypes.length) {
+            val powerUpType = allPowerUpTypes(column)
 
-              // CAPTURES? A piece is moved, so check if there are captures
-              this.checkCaptures(s_piece)
+            powerUpType match {
+              case powerups.PowerUpType.DiagonalMove =>
+                // ASSIGN Diagonal Move power up
+                println(s"Power up '${powerUpType.displayName}' assigned to piece at [${s_piece.row},${s_piece.column}]!.")
+                val poweredPiece = new DiagonalMove(s_piece)
+                poweredPiece.isSelected = false
+                this.logicGrid.addPiece(poweredPiece, s_piece.row, s_piece.column)
+                panel.removeDrawable(s_piece)
+                panel.addDrawables(List(poweredPiece).asJava)
 
-              // GAME OVER?
-              this.checkGameOver()
-              // TODO: WHAT IF GAME OVER?
-
-              if (!this.isGameOver) {
                 // Switch turns
                 this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
                 println(s"Next turn: Player ${this.currentPlayer}")
+
+
+              case _ =>
+                println(s"Action for '${powerUpType.displayName}' not implemented yet.")
+            }
+          }
+        } else { // Not in the UI bar
+
+          // Click on a square
+          clickedSquare match {
+            // Click on an other piece
+            case Some(piece) =>
+              this.selectedPiece = None
+              s_piece.isSelected = false
+              this.panel.repaint()
+              println(s"Selection canceled: Player ${this.currentPlayer} selected a non-empty field")
+            // Click on an empty cell
+            case None =>
+              // Only if valid move, move the piece
+              if (this.isValidMove(s_piece, row, column)) {
+                println(s"Moved to[$row, $column]")
+                this.logicGrid.movePiece(s_piece.row, s_piece.column, row, column)
+                s_piece.updatePosition(row, column) // Updates position of piece with power up
+
+                // CAPTURES? A piece is moved, so check if there are captures
+                this.checkCaptures(s_piece)
+
+                // GAME OVER?
+                this.checkGameOver()
+                // TODO: WHAT IF GAME OVER?
+
+                if (!this.isGameOver) {
+                  // Switch turns
+                  this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
+                  println(s"Next turn: Player ${this.currentPlayer}")
+                }
+
               }
+              // Not a valid move so don't move
+              else {
+                println("Invalid move")
+              }
+              // We always deselect the piece and repaint (whether it's a valid move or not)
+              s_piece.isSelected = false
+              this.panel.repaint() // redraw board from java
 
-            }
-            // Not a valid move so don't move
-            else {
-              println("Invalid move")
-            }
-            // We always deselect the piece and repaint (whether it's a valid move or not)
-            s_piece.isSelected = false
-            this.panel.repaint() // redraw board from java
+          } // end 2nd click
+        } // Some(s_piece) else finished (if it was not in UI)
 
-        }
         // Whatever we do after a piece is selected, deselect the piece after action
         // (still in selectedPiece match)
+        s_piece.isSelected = false
+        this.panel.repaint()
         this.selectedPiece = None
 
     }

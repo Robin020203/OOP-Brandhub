@@ -21,7 +21,7 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
     this.row = newRow
     this.column = newColumn
   }
-  
+
   /** Draw a piece */
 
   def draw(g: Graphics2D): Unit = {
@@ -39,13 +39,28 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
     val yOffset = (cellHeight - size) / 2
     val x = (this.column * cellWidth) + xOffset // horizontal start position
     val y = (this.row * cellHeight) + yOffset//vertical start position
+
+    // Power up piece border
+    val hasPowerUp = this.isInstanceOf[game.powerups.PowerUp]
+
     // Player color
     val playerColor = this.player match {
-      case Player.Attacker => Color.RED
-      case Player.Defender => Color.YELLOW
+      case Player.Attacker =>
+        if (!hasPowerUp) {
+          Color.RED.darker()
+        } else {
+          Color.RED.brighter()
+        }
+      case Player.Defender =>
+        if (!hasPowerUp) {
+          Color.YELLOW.darker()
+        } else {
+          Color.YELLOW
+        }
     }
     // Border width and color (other color if it's selected)
     g.setStroke(new BasicStroke(8))
+
     val borderColor = if (this.isSelected) Color.CYAN else Color.DARK_GRAY
 
     // Draw border

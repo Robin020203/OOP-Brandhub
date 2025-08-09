@@ -7,7 +7,7 @@ class DiagonalMove(power: Piece) extends PowerUp(power) {
 
   override def isValidMove(grid: Grid[Piece], toRow: Int, toColumn: Int): Boolean = {
     // Old rules apply
-    val wasValidBefore = super.isValidMove(grid, toRow, toColumn)
+    val wasValidBefore = this.power.isValidMove(grid, toRow, toColumn)
 
     // New diagonal rule
     val isDiagonal = math.abs(this.row - toRow) == math.abs(this.column - toColumn) // abs(row diff) = abs(column diff)
@@ -22,11 +22,11 @@ class DiagonalMove(power: Piece) extends PowerUp(power) {
       range.forall {
         i =>
           val checkRow = this.row + i * rowStep
-          val checkColumn = this.column + i * rowStep
+          val checkColumn = this.column + i * columnStep
           grid.getPiece(checkRow, checkColumn).isEmpty
       }
     }
-    
+
 
     // Old rule OR Diagonal rule with clear path needs to apply
     wasValidBefore || (isDiagonal && isDiagonalPathClear())

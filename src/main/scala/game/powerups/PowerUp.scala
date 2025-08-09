@@ -7,6 +7,7 @@ abstract class PowerUp(val power: Piece) extends Piece(power.row, power.column, 
   override def updatePosition(newRow: Int, newColumn: Int): Unit = {
     this.row = newRow
     this.column = newColumn
+    this.power.updatePosition(newRow, newColumn) // also update piece that gets power up
   }
 
   // Piece's player and image
