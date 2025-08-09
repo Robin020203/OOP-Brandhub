@@ -108,9 +108,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           // King can not get a power up
           if (!s_piece.canReceivePowerUp) {
             println("Only Soldiers can receive power ups")
-            s_piece.isSelected = false
-            this.selectedPiece = None
-            this.panel.repaint()
+            this.deselectPieceAndRepaint(s_piece)
             return
           }
           val allPowerUpTypes = powerups.PowerUpType.values
@@ -134,16 +132,6 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 } else {
                   println(s"No power up ${powerUpType.displayName} left")
                 }
-                // ASSIGN Diagonal Move power up
-                //println(s"Power up '${powerUpType.displayName}' assigned to piece at [${s_piece.row},${s_piece.column}]!.")
-                //val poweredPiece = new DiagonalMove(s_piece)
-                //poweredPiece.isSelected = false
-                //this.logicGrid.addPiece(poweredPiece, s_piece.row, s_piece.column)
-                //panel.removeDrawable(s_piece)
-                //panel.addDrawables(List(poweredPiece).asJava)
-                // Switch turns
-                //this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
-                //println(s"Next turn: Player ${this.currentPlayer}")
 
               case powerups.PowerUpType.Leap =>
                 val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
@@ -188,9 +176,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                   notPowered
               }
               // In both cases, the piece gets deselected
-              this.selectedPiece = None
-              pieceToReset.isSelected = false
-              this.panel.repaint()
+              this.deselectPieceAndRepaint(pieceToReset)
 
             // Click on an empty cell
             case None =>
@@ -237,6 +223,8 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                   this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
                   println(s"Next turn: Player ${this.currentPlayer}")
                 }
+                // deselect the piece and repaint panel
+                this.deselectPieceAndRepaint(pieceToKeep)
 
               }
               // Not a valid move so don't move
@@ -244,17 +232,11 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 println("Invalid move")
               }
               // We always deselect the piece and repaint (whether it's a valid move or not)
-              s_piece.isSelected = false
-              this.panel.repaint() // redraw board from java
+              this.deselectPieceAndRepaint(s_piece)
 
           } // end 2nd click
         } // Some(s_piece) else finished (if it was not in UI)
-
-        // Always deselect after any action
-        // (still in selectedPiece match)
-         s_piece.isSelected = false
-         this.panel.repaint()
-         this.selectedPiece = None
+      
 
     }
     // after selectedPiece match (print status after every click)
@@ -410,5 +392,21 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     }
   }
 
+
+  /** Deselects pieces and repaints panel*/
+
+  private def deselectPieceAndRepaint(pieceToDeselect: Piece): Unit = {
+    pieceToDeselect.isSelected = false
+    this.selectedPiece = None
+    this.panel.repaint()
+  }
+
+  /** Selects pieces and repaints panel*/
+
+  private def selectPieceAndRepaint(pieceToDeselect: Piece): Unit = {
+    pieceToDeselect.isSelected = true
+    this.selectedPiece = Some(pieceToDeselect)
+    this.panel.repaint()
+  }
 
 }
