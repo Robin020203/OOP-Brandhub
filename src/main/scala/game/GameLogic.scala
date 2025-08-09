@@ -17,8 +17,11 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   var captureEffects: List[CaptureEffect] = List() // Can change to List of effects
   var isGameOver: Boolean = false // Can change to true
 
-  // To keep track if someone is choosing a target for a power up (exterminate)
+  // To keep track if someone is placing an extra soldier
+  var placementForPowerUp: Option[powerups.PowerUpType] = None
+  // To keep track if someone is choosing a target for exterminate
   var targetingPowerUp: Option[powerups.PowerUpType] = None
+  // Active timers (for power ups)
   var activeTimers: Map[Piece, (Int, Player)] = Map()
 
   // Stores remaining power up counts in a map
@@ -117,6 +120,44 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
       return // Targeting action over
     }
 
+    if (this.placementForPowerUp.isDefined) {
+      val powerUpType = this.placementForPowerUp.get
+      clickedSquare match {
+        case None =>
+          if (!isCenter(row, column) && !isCorner(row, column)) {
+            println("New soldier is placed")
+            val newSoldier = new Soldier(row, column, this.currentPlayer)
+
+            // Add to board
+            this.logicGrid.addPiece(newSoldier, row, column)
+            this.panel.addDrawables(List(newSoldier).asJava)
+            this.panel.repaint()
+
+            // Start timer
+            this.activeTimers += (newSoldier -> (3, this.currentPlayer))
+
+            // Use charge (power up)
+            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+            this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+
+            // Reset
+            this.placementForPowerUp = None
+            this.deselectPieceAndRepaint(this.selectedPiece.get)
+            this.updateTimers()
+
+            // Switch turns
+            this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
+            println(s"Next turn: Player ${this.currentPlayer}")
+          }
+
+        case _ =>
+          println("Invalid location, action canceled")
+          this.placementForPowerUp = None
+          this.deselectPieceAndRepaint(this.selectedPiece.get)
+      }
+      return // placement action finished
+    }
+
     this.selectedPiece match {
       // No piece selected yet, new click as selection attempt
       case None =>
@@ -175,6 +216,16 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 if (count > 0) {
                   println("Exterminate activated, select an enemy Soldier")
                   this.targetingPowerUp = Some(powerups.PowerUpType.Exterminate)
+                } else {
+                  println("No Exterminate power up left")
+                }
+                return
+              // Extra soldier power up
+              case powerups.PowerUpType.TemporarySoldier =>
+                val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+                if (count > 0) {
+                  println("Extra soldier activated, select an empty square to place")
+                  this.placementForPowerUp = Some(powerups.PowerUpType.TemporarySoldier)
                 } else {
                   println("No Exterminate power up left")
                 }
