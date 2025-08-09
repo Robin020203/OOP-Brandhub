@@ -21,7 +21,11 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
     this.row = newRow
     this.column = newColumn
   }
-
+  
+  // for Soldiers to override
+  def canReceivePowerUp: Boolean = false 
+  
+  
   /** Draw a piece */
 
   def draw(g: Graphics2D): Unit = {
@@ -74,7 +78,8 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
   }
 
 
-  /** Check if a move is valid */
+  /** Check if a move is valid, moved here to override by power ups
+   * It has to be a straight move with a clear path*/
 
   def isValidMove(grid: Grid[Piece], toRow: Int, toColumn: Int): Boolean = {
 

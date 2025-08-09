@@ -3,7 +3,7 @@ package game.powerups
 import game.pieces.Piece
 import game.Grid
 
-class DiagonalMove(power: Piece) extends PowerUp(power) {
+class DiagonalMove(power: Piece) extends PowerUp(power, PowerUpType.DiagonalMove) {
 
   override def isValidMove(grid: Grid[Piece], toRow: Int, toColumn: Int): Boolean = {
     // Old rules apply

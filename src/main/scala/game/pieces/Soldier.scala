@@ -7,7 +7,8 @@ import gamelib.AssetsLoader
 class Soldier(row: Int, column: Int, val player: Player) extends Piece(row, column) {
   
   def image: String = "soldier.png"
-  
+
+  override def canReceivePowerUp: Boolean = true
 }
 
 //class Soldaat extends Piece:
