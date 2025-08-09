@@ -172,10 +172,25 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           clickedSquare match {
             // Clicked on an other piece (cancel selection)
             case Some(piece) =>
-              this.selectedPiece = None
-              s_piece.isSelected = false
-              this.panel.repaint()
               println(s"Selection canceled: Player ${this.currentPlayer} selected a non-empty field")
+              val pieceToReset: Piece = s_piece match {
+                // It was a powered up piece, so reset power
+                case powered: powerups.PowerUp =>
+                  val originalPiece = powered.power // origninal piece
+                  this.logicGrid.addPiece(originalPiece, powered.row, powered.column)
+                  this.panel.removeDrawable(powered)
+                  this.panel.addDrawables(List(originalPiece).asJava)
+
+                  originalPiece
+
+                // Normal selection, so nothing to change
+                case notPowered =>
+                  notPowered
+              }
+              // In both cases, the piece gets deselected
+              this.selectedPiece = None
+              pieceToReset.isSelected = false
+              this.panel.repaint()
 
             // Click on an empty cell
             case None =>
@@ -183,8 +198,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               if (this.isValidMove(s_piece, row, column)) {
                 println(s"Moved to[$row, $column]")
 
-                // If the piece has a power up, it is usable
+                // Store what we have to keep
                 val pieceToKeep: Piece = s_piece match {
+                  // 1) if s_piece is a powered piece
                   case powered: powerups.PowerUp =>
                     val powerUpType = powered.powerUpType
                     val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType),0)
@@ -200,10 +216,15 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
                 // Move piece on the board
                 this.logicGrid.movePiece(s_piece.row, s_piece.column, row, column)
-                s_piece.updatePosition(row, column) // Updates position of piece (with power up)
+                pieceToKeep.updatePosition(row, column) // Updates position of piece
+
+                this.logicGrid.addPiece(pieceToKeep, row, column)
+                this.panel.removeDrawable(s_piece)
+                this.panel.addDrawables(List(pieceToKeep).asJava)
+                pieceToKeep.isSelected = false
 
                 // CAPTURES? A piece is moved, so check if there are captures
-                this.checkCaptures(s_piece)
+                this.checkCaptures(pieceToKeep)
 
                 // GAME OVER?
                 this.checkGameOver()
@@ -212,6 +233,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 // If not game over
                 if (!this.isGameOver) {
                   // Switch turns
+                  this.removePowerUps(this.currentPlayer)
                   this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
                   println(s"Next turn: Player ${this.currentPlayer}")
                 }
@@ -230,9 +252,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
         // Always deselect after any action
         // (still in selectedPiece match)
-        s_piece.isSelected = false
-        this.panel.repaint()
-        this.selectedPiece = None
+         s_piece.isSelected = false
+         this.panel.repaint()
+         this.selectedPiece = None
 
     }
     // after selectedPiece match (print status after every click)
@@ -360,11 +382,33 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     var activePowerUps = Set[powerups.PowerUpType]()
 
     selectedPiece.foreach { piece =>
+      // Only if piece is a soldier or already has a power up
+      if (piece.isInstanceOf[Soldier] || piece.isInstanceOf[powerups.PowerUp]) {
+        activePowerUps = powerups.PowerUpType.values.toSet
+      } else { // None or King
+        activePowerUps = Set.empty
+      }
       // TODO (currently activates all powerups)
-      activePowerUps = powerups.PowerUpType.values.toSet
     }
     this.powerUpSelector.activePowerUps = activePowerUps
-
   }
+
+  /** Removes active power ups from player*/
+
+  private def removePowerUps(player: Player): Unit = {
+    this.logicGrid.allPieces().foreach {
+      case powered: powerups.PowerUp =>
+        // if it's from current player
+        if (powered.player == player) {
+          val originalPiece = powered.power
+          // Add original piece and remove power up
+          this.logicGrid.addPiece(originalPiece, powered.row, powered.column)
+          this.panel.removeDrawable(powered)
+          this.panel.addDrawables(List(originalPiece).asJava)
+        }
+      case _ => () // all other pieces
+    }
+  }
+
 
 }
