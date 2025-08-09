@@ -98,22 +98,19 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
             this.activeTimers = this.activeTimers + (exterminatedPiece -> (3, this.currentPlayer))
 
             // Use power up
-            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-            this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+            this.consumePowerUp(powerUpType)
 
             // Reset targeting mode and selection
             this.targetingPowerUp = None
             this.deselectPieceAndRepaint(this.selectedPiece.get) //
 
             // Switch turn
-            this.updateTimers()
-            this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
-            println(s"Next turn: Player ${this.currentPlayer}")
+            this.endTurn()
           }
 
         // Invalid target
         case _ =>
-          println("Invalid target, action canceled.")
+          this.cancelPowerUpAction("Invalid target")
           this.targetingPowerUp = None
           this.deselectPieceAndRepaint(this.selectedPiece.get) //
       }
@@ -137,21 +134,18 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
             this.activeTimers += (newSoldier -> (3, this.currentPlayer))
 
             // Use charge (power up)
-            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-            this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+            this.consumePowerUp(powerUpType)
 
             // Reset
             this.placementForPowerUp = None
             this.deselectPieceAndRepaint(this.selectedPiece.get)
-            this.updateTimers()
 
             // Switch turns
-            this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
-            println(s"Next turn: Player ${this.currentPlayer}")
+            this.endTurn()
           }
 
         case _ =>
-          println("Invalid location, action canceled")
+          this.cancelPowerUpAction("Invalid location")
           this.placementForPowerUp = None
           this.deselectPieceAndRepaint(this.selectedPiece.get)
       }
@@ -288,12 +282,8 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
                 // If not game over
                 if (!this.isGameOver) {
-                  // timer-function update
-                  this.updateTimers()
                   // Switch turns
-                  //this.removePowerUps(this.currentPlayer)
-                  this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
-                  println(s"Next turn: Player ${this.currentPlayer}")
+                  this.endTurn()
                 }
                 // deselect the piece and repaint panel
                 this.deselectPieceAndRepaint(pieceToKeep)
@@ -536,14 +526,23 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     originalPiece // Return original piece
   }
 
+
+  /** Uses a power up and lowering the count */
+
+  private def consumePowerUp(powerUpType: powerups.PowerUpType): Unit = {
+    val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+    if (count > 0) {
+      this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+      println(s"Power-up ${powerUpType.displayName} used. ${count - 1} left.")
+    }
+  }
+
+
   /** Reverts a powered piece to its original form without power up */
 
   private def consumeAndRevertPowerUp(poweredPiece: powerups.PowerUp): Piece = {
-    // Get info and lower counter
-    val powerUpType = poweredPiece.powerUpType
-    val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-    this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
-    println(s"Power up ${powerUpType.displayName} used. ${count - 1} left.")
+    // Use power up and lower counter
+    this.consumePowerUp(poweredPiece.powerUpType)
 
     // Reset piece with other helper function
     this.revertPowerUp(poweredPiece)
@@ -566,7 +565,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     this.panel.addDrawables(List(pieceToKeep).asJava)
   }
 
+
   /** Updates all active timers */
+
   private def updateTimers(): Unit = {
     var nextTurnTimers: Map[Piece, (Int, Player)] = Map()
     var expiredPieces: List[Piece] = List()
@@ -613,4 +614,28 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     }
     if (expiredPieces.nonEmpty) this.panel.repaint()
   }
+
+
+  /** End a player's turn */
+
+  private def endTurn(): Unit = {
+    this.updateTimers()
+    this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
+    println(s"Next turn: Player ${this.currentPlayer}")
+  }
+
+
+  /** cancels actions (used for invalid actions) */
+
+  private def cancelPowerUpAction(message: String): Unit = {
+    println(s"$message, action canceled.")
+    // Reset both (now this function works for multiple power ups)
+    this.targetingPowerUp = None
+    this.placementForPowerUp = None
+    // Deselect piece that power up tried to use
+    if (this.selectedPiece.isDefined) {
+      deselectPieceAndRepaint(this.selectedPiece.get)
+    }
+  }
+
 }

@@ -60,7 +60,7 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
         baseColor.darker()
       case _: game.powerups.PowerUp =>
         baseColor.brighter()
-      case _ => 
+      case _ =>
         baseColor
     }
 
