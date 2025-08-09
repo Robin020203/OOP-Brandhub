@@ -4,6 +4,8 @@ import game.pieces.Piece
 
 abstract class PowerUp(val power: Piece, val powerUpType: PowerUpType) extends Piece(power.row, power.column, power.isSelected) {
 
+  override def canReceivePowerUp: Boolean = power.canReceivePowerUp
+  
   override def updatePosition(newRow: Int, newColumn: Int): Unit = {
     this.row = newRow
     this.column = newColumn

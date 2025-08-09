@@ -5,7 +5,7 @@ import game.pieces.*
 import game.Grid
 import game.pieces.Player.{Attacker, Defender}
 import game.effects.CaptureEffect
-import game.powerups.{DiagonalMove, Leap}
+import game.powerups.{DiagonalMove, Exterminate, Leap}
 
 import scala.jdk.CollectionConverters.*
 
@@ -16,6 +16,10 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   var selectedPiece: Option[Piece] = None // Can change to Some(piece) or None
   var captureEffects: List[CaptureEffect] = List() // Can change to List of effects
   var isGameOver: Boolean = false // Can change to true
+
+  // To keep track if someone is choosing a target for a power up (exterminate)
+  var targetingPowerUp: Option[powerups.PowerUpType] = None
+  var activeTimers: Map[Piece, (Int, Player)] = Map()
 
   // Stores remaining power up counts in a map
   var powerUpCounts: Map[(Player, powerups.PowerUpType), Int] = Map(
@@ -69,8 +73,49 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     if (this.isGameOver) {
       return
     }
-
+    // What is on the selected square
     val clickedSquare = this.logicGrid.getPiece(row, column)
+
+    if (this.targetingPowerUp.isDefined) {
+      val powerUpType = this.targetingPowerUp.get
+
+      clickedSquare match {
+        // Player clicks on valid target
+        case Some(targetPiece: Soldier) =>
+          if (targetPiece.player != this.currentPlayer) {
+            println("Valid target selected")
+            targetPiece.isMarkedForExtermination = true
+
+            // New powered piece
+            val exterminatedPiece = new Exterminate(targetPiece)
+            // Replace original piece by powered piece
+            this.replacePiece(targetPiece, exterminatedPiece)
+
+            // Add to timer map
+            this.activeTimers = this.activeTimers + (exterminatedPiece -> (3, this.currentPlayer))
+
+            // Use power up
+            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+            this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+
+            // Reset targeting mode and selection
+            this.targetingPowerUp = None
+            this.deselectPieceAndRepaint(this.selectedPiece.get) //
+
+            // Switch turn
+            this.updateTimers()
+            this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
+            println(s"Next turn: Player ${this.currentPlayer}")
+          }
+
+        // Invalid target
+        case _ =>
+          println("Invalid target, action canceled.")
+          this.targetingPowerUp = None
+          this.deselectPieceAndRepaint(this.selectedPiece.get) //
+      }
+      return // Targeting action over
+    }
 
     this.selectedPiece match {
       // No piece selected yet, new click as selection attempt
@@ -116,40 +161,25 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
             val powerUpType = allPowerUpTypes(column)
 
             powerUpType match {
+              // Diagonal Move power up
               case powerups.PowerUpType.DiagonalMove =>
-                val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-                if (count > 0) {
-                  println(s"Power up ${powerUpType.displayName} activated")
-                  val poweredPiece = new DiagonalMove(s_piece)
-                  this.logicGrid.addPiece(poweredPiece, s_piece.row, s_piece.column)
-                  this.panel.removeDrawable(s_piece)
-                  this.panel.addDrawables(List(poweredPiece).asJava)
-                  poweredPiece.isSelected = true
-                  this.selectedPiece = Some(poweredPiece)
-                  this.panel.repaint()
-                  return
-
-                } else {
-                  println(s"No power up ${powerUpType.displayName} left")
-                }
-
+                this.tryActivatePowerUp(s_piece, powerups.PowerUpType.DiagonalMove)
+                return
+              // Leap power up
               case powerups.PowerUpType.Leap =>
+                this.tryActivatePowerUp(s_piece, powerups.PowerUpType.Leap)
+                return
+              // Exterminate power up
+              case powerups.PowerUpType.Exterminate =>
                 val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
                 if (count > 0) {
-                  println(s"Power up ${powerUpType.displayName} activated")
-                  val poweredPiece = new Leap(s_piece)
-                  this.logicGrid.addPiece(poweredPiece, s_piece.row, s_piece.column)
-                  this.panel.removeDrawable(s_piece)
-                  this.panel.addDrawables(List(poweredPiece).asJava)
-                  poweredPiece.isSelected = true
-                  this.selectedPiece = Some(poweredPiece)
-                  this.panel.repaint()
-                  return
-
+                  println("Exterminate activated, select an enemy Soldier")
+                  this.targetingPowerUp = Some(powerups.PowerUpType.Exterminate)
                 } else {
-                  println(s"No power up ${powerUpType.displayName} left")
+                  println("No Exterminate power up left")
                 }
-
+                return
+              // Other power ups
               case _ =>
                 println(s"Action for '${powerUpType.displayName}' not implemented yet.")
             }
@@ -164,13 +194,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               val pieceToReset: Piece = s_piece match {
                 // It was a powered up piece, so reset power
                 case powered: powerups.PowerUp =>
-                  val originalPiece = powered.power // origninal piece
-                  this.logicGrid.addPiece(originalPiece, powered.row, powered.column)
-                  this.panel.removeDrawable(powered)
-                  this.panel.addDrawables(List(originalPiece).asJava)
-
-                  originalPiece
-
+                  this.revertPowerUp(powered)
                 // Normal selection, so nothing to change
                 case notPowered =>
                   notPowered
@@ -186,14 +210,15 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
                 // Store what we have to keep
                 val pieceToKeep: Piece = s_piece match {
-                  // 1) if s_piece is a powered piece
+                  // if s_piece is a powered piece
                   case powered: powerups.PowerUp =>
-                    val powerUpType = powered.powerUpType
-                    val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType),0)
-                    this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
-                    println(s"Power up ${powerUpType.displayName} used. ${count - 1} left.")
-
-                    powered.power // Original piece
+                    powered.powerUpType match {
+                      // Only in case of Exterminate, keep the effect
+                      case powerups.PowerUpType.Exterminate =>
+                        powered
+                      case _ =>
+                        this.consumeAndRevertPowerUp(powered)
+                    }
 
                   case notPowered =>
                     notPowered // Normal move, so keep normal piece without changes
@@ -201,25 +226,21 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 }
 
                 // Move piece on the board
-                this.logicGrid.movePiece(s_piece.row, s_piece.column, row, column)
-                pieceToKeep.updatePosition(row, column) // Updates position of piece
-
-                this.logicGrid.addPiece(pieceToKeep, row, column)
-                this.panel.removeDrawable(s_piece)
-                this.panel.addDrawables(List(pieceToKeep).asJava)
+                this.executeMove(s_piece, pieceToKeep, row, column)
                 pieceToKeep.isSelected = false
 
                 // CAPTURES? A piece is moved, so check if there are captures
                 this.checkCaptures(pieceToKeep)
-
                 // GAME OVER?
                 this.checkGameOver()
                 // TODO: WHAT IF GAME OVER?
 
                 // If not game over
                 if (!this.isGameOver) {
+                  // timer-function update
+                  this.updateTimers()
                   // Switch turns
-                  this.removePowerUps(this.currentPlayer)
+                  //this.removePowerUps(this.currentPlayer)
                   this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
                   println(s"Next turn: Player ${this.currentPlayer}")
                 }
@@ -230,13 +251,24 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               // Not a valid move so don't move
               else {
                 println("Invalid move")
+                val pieceToReset: Piece = s_piece match {
+                  case powered: powerups.PowerUp =>
+                    powered.powerUpType match {
+                      case powerups.PowerUpType.DiagonalMove | powerups.PowerUpType.Leap =>
+                        this.consumeAndRevertPowerUp(powered)
+                      case _ =>
+                        powered
+                    }
+                  case notPowered =>
+                    notPowered
+                }
+                // We always deselect the piece and repaint (whether it's a valid move or not)
+                this.deselectPieceAndRepaint(pieceToReset)
               }
-              // We always deselect the piece and repaint (whether it's a valid move or not)
-              this.deselectPieceAndRepaint(s_piece)
 
           } // end 2nd click
         } // Some(s_piece) else finished (if it was not in UI)
-      
+
 
     }
     // after selectedPiece match (print status after every click)
@@ -409,4 +441,125 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     this.panel.repaint()
   }
 
+  /** Replaces piece by other piece*/
+
+  private def replacePiece(oldPiece: Piece, newPiece: Piece): Unit = {
+    this.logicGrid.addPiece(newPiece, oldPiece.row, oldPiece.column)
+    this.panel.removeDrawable(oldPiece)
+    this.panel.addDrawables(List(newPiece).asJava)
+    this.panel.repaint()
+  }
+
+
+  /** Can activate a power up if there are >0 left */
+
+  private def tryActivatePowerUp(piece: Piece, powerUpType: powerups.PowerUpType): Unit = {
+    val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+    if (count > 0) {
+      println(s"Power up ${powerUpType.displayName} activated")
+
+      val poweredPiece: powerups.PowerUp = powerUpType match {
+        case powerups.PowerUpType.DiagonalMove => new DiagonalMove(piece)
+        case powerups.PowerUpType.Leap => new Leap(piece)
+        case powerups.PowerUpType.Exterminate => new Exterminate(piece)
+        //case powerups.PowerUpType.TemporarySoldier => new TemporarySoldier(piece)
+      }
+
+      this.replacePiece(piece, poweredPiece)
+      this.selectPieceAndRepaint(poweredPiece)
+
+    } else {
+      println(s"No power up ${powerUpType.displayName} left")
+    }
+  }
+
+
+  /** Reverts a powered piece to its original form without power up */
+
+  private def revertPowerUp(poweredPiece: powerups.PowerUp): Piece = {
+    val originalPiece = poweredPiece.power // origninal piece
+    this.logicGrid.addPiece(originalPiece, poweredPiece.row, poweredPiece.column)
+    this.panel.removeDrawable(poweredPiece)
+    this.panel.addDrawables(List(originalPiece).asJava)
+
+    originalPiece // Return original piece
+  }
+
+  /** Reverts a powered piece to its original form without power up */
+
+  private def consumeAndRevertPowerUp(poweredPiece: powerups.PowerUp): Piece = {
+    // Get info and lower counter
+    val powerUpType = poweredPiece.powerUpType
+    val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+    this.powerUpCounts = this.powerUpCounts.updated((this.currentPlayer, powerUpType), count - 1)
+    println(s"Power up ${powerUpType.displayName} used. ${count - 1} left.")
+
+    // Reset piece with other helper function
+    this.revertPowerUp(poweredPiece)
+  }
+
+
+
+  /** Makes a move on the Grid and in the UI
+   * It replaces a start piece (can be powered piece) by the end piece (pieceToKeep) */
+
+  private def executeMove(startPiece: Piece, pieceToKeep: Piece, toRow: Int, toColumn: Int): Unit = {
+    // Remove piece from start position
+    this.logicGrid.removePiece(startPiece.row, startPiece.column)
+    //this.logicGrid.movePiece(startPiece.row, startPiece.column, toRow, toColumn)
+    // Change coordinates of end piece and add to grid
+    pieceToKeep.updatePosition(toRow, toColumn)
+    this.logicGrid.addPiece(pieceToKeep, toRow, toColumn)
+    // Visual
+    this.panel.removeDrawable(startPiece)
+    this.panel.addDrawables(List(pieceToKeep).asJava)
+  }
+
+  /** Updates all active timers */
+  private def updateTimers(): Unit = {
+    var nextTurnTimers: Map[Piece, (Int, Player)] = Map()
+    var expiredPieces: List[Piece] = List()
+    val nextPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
+
+    this.activeTimers.foreach {
+      case (piece, (turnsLeft, initPlayer)) =>
+        // Round over?
+        if (nextPlayer != initPlayer) {
+          if (turnsLeft > 0) {
+            nextTurnTimers = nextTurnTimers + (piece -> (turnsLeft - 1, initPlayer))
+          } else {
+            // Timer ran out
+            expiredPieces = piece :: expiredPieces
+          }
+
+        } else {
+          // Opponent's turn, remains stays the same
+          nextTurnTimers = nextTurnTimers + (piece -> (turnsLeft, initPlayer))
+        }
+    }
+
+    this.activeTimers = nextTurnTimers
+
+    expiredPieces.foreach {
+      piece =>
+        println(s"Timer ran out, piece at [${piece.row}, ${piece.column}] removed")
+        //this.logicGrid.removePiece(piece.row, piece.column)
+        //this.panel.removeDrawable(piece)
+        this.logicGrid.getPiece(piece.row, piece.column) match {
+          case Some(currentPiece) =>
+            this.logicGrid.removePiece(piece.row, piece.column)
+            this.panel.removeDrawable(currentPiece)
+          case None =>
+            // als er niets meer in het grid staat, toch nog proberen oude referentie weg te halen
+            this.panel.removeDrawable(piece)
+        }
+
+
+        // Same capture-effect as normal death
+        val effect = new CaptureEffect(piece.row, piece.column)
+        this.panel.addDrawables(List(effect).asJava)
+        this.captureEffects = effect :: this.captureEffects
+    }
+    if (expiredPieces.nonEmpty) this.panel.repaint()
+  }
 }

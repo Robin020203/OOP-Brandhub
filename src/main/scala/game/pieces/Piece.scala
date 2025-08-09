@@ -15,17 +15,18 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
 
   val player: Player // override
   def image: String // override
+  var isMarkedForExtermination: Boolean = false
 
   // for PowerUp Class
   def updatePosition(newRow: Int, newColumn: Int): Unit = {
     this.row = newRow
     this.column = newColumn
   }
-  
+
   // for Soldiers to override
-  def canReceivePowerUp: Boolean = false 
-  
-  
+  def canReceivePowerUp: Boolean = false
+
+
   /** Draw a piece */
 
   def draw(g: Graphics2D): Unit = {
@@ -47,21 +48,22 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
     // Power up piece border
     val hasPowerUp = this.isInstanceOf[game.powerups.PowerUp]
 
-    // Player color
-    val playerColor = this.player match {
-      case Player.Attacker =>
-        if (!hasPowerUp) {
-          Color.RED.darker()
-        } else {
-          Color.RED.brighter()
-        }
-      case Player.Defender =>
-        if (!hasPowerUp) {
-          Color.YELLOW.darker()
-        } else {
-          Color.YELLOW
-        }
+    // Player base color
+    val baseColor = this.player match {
+      case Player.Attacker => Color.RED.darker()
+      case Player.Defender => Color.YELLOW.darker()
     }
+
+    //
+    val playerColor: Color = this match {
+      case _: game.powerups.Exterminate =>
+        baseColor.darker()
+      case _: game.powerups.PowerUp =>
+        baseColor.brighter()
+      case _ => 
+        baseColor
+    }
+
     // Border width and color (other color if it's selected)
     g.setStroke(new BasicStroke(8))
 
