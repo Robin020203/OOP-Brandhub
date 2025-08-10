@@ -16,7 +16,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   var selectedPiece: Option[Piece] = None // Can change to Some(piece) or None
   var captureEffects: List[CaptureEffect] = List() // Can change to List of effects
   var isGameOver: Boolean = false // Can change to true
-  
+
   // To keep track if someone is placing an extra soldier
   var placementForPowerUp: Option[powerups.PowerUpType] = None
   // To keep track if someone is choosing a target for exterminate
@@ -80,76 +80,12 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     val clickedSquare = this.logicGrid.getPiece(row, column)
 
     if (this.targetingPowerUp.isDefined) {
-      val powerUpType = this.targetingPowerUp.get
-
-      clickedSquare match {
-        // Player clicks on valid target
-        case Some(targetPiece: Soldier) =>
-          if (targetPiece.player != this.currentPlayer) {
-            println("Valid target selected")
-            targetPiece.isMarkedForExtermination = true
-
-            // New powered piece
-            val exterminatedPiece = new Exterminate(targetPiece)
-            // Replace original piece by powered piece
-            this.replacePiece(targetPiece, exterminatedPiece)
-
-            // Add to timer map
-            this.activeTimers = this.activeTimers + (exterminatedPiece -> (3, this.currentPlayer))
-
-            // Use power up
-            this.consumePowerUp(powerUpType)
-
-            // Reset targeting mode and selection
-            this.targetingPowerUp = None
-            this.deselectPieceAndRepaint(this.selectedPiece.get) //
-
-            // Switch turn
-            this.endTurn()
-          }
-
-        // Invalid target
-        case _ =>
-          this.cancelPowerUpAction("Invalid target")
-          this.targetingPowerUp = None
-          this.deselectPieceAndRepaint(this.selectedPiece.get) //
-      }
-      return // Targeting action over
+      this.executeTargetingPowerUp(clickedSquare)
+      return
     }
 
     if (this.placementForPowerUp.isDefined) {
-      val powerUpType = this.placementForPowerUp.get
-      clickedSquare match {
-        case None =>
-          if (!isCenter(row, column) && !isCorner(row, column)) {
-            println("New soldier is placed")
-            val newSoldier = new Soldier(row, column, this.currentPlayer)
-
-            // Add to board
-            this.logicGrid.addPiece(newSoldier, row, column)
-            this.panel.addDrawables(List(newSoldier).asJava)
-            this.panel.repaint()
-
-            // Start timer
-            this.activeTimers += (newSoldier -> (3, this.currentPlayer))
-
-            // Use charge (power up)
-            this.consumePowerUp(powerUpType)
-
-            // Reset
-            this.placementForPowerUp = None
-            this.deselectPieceAndRepaint(this.selectedPiece.get)
-
-            // Switch turns
-            this.endTurn()
-          }
-
-        case _ =>
-          this.cancelPowerUpAction("Invalid location")
-          this.placementForPowerUp = None
-          this.deselectPieceAndRepaint(this.selectedPiece.get)
-      }
-      return // placement action finished
+      this.executePlacementForPowerUp(row, column, clickedSquare)
     }
 
     this.selectedPiece match {
@@ -314,6 +250,78 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     }
     // after selectedPiece match (print status after every click)
     println(s"clicked on field: [$row , $column]. Current player: ${this.currentPlayer}")
+
+
+  private def executeTargetingPowerUp(clickedSquare: Option[Piece]): Unit = {
+    val powerUpType = this.targetingPowerUp.get
+
+    clickedSquare match {
+      // Player clicks on valid target
+      case Some(targetPiece: Soldier) =>
+        if (targetPiece.player != this.currentPlayer) {
+          println("Valid target selected")
+          targetPiece.isMarkedForExtermination = true
+
+          // New powered piece
+          val exterminatedPiece = new Exterminate(targetPiece)
+          // Replace original piece by powered piece
+          this.replacePiece(targetPiece, exterminatedPiece)
+
+          // Add to timer map
+          this.activeTimers = this.activeTimers + (exterminatedPiece -> (3, this.currentPlayer))
+
+          // Use power up
+          this.consumePowerUp(powerUpType)
+
+          // Reset targeting mode and selection
+          this.targetingPowerUp = None
+          this.deselectPieceAndRepaint(this.selectedPiece.get) //
+
+          // Switch turn
+          this.endTurn()
+        }
+
+      // Invalid target
+      case _ =>
+        this.cancelPowerUpAction("Invalid target")
+        this.targetingPowerUp = None
+        this.deselectPieceAndRepaint(this.selectedPiece.get) //
+    }
+  }
+
+  private def executePlacementForPowerUp(row: Int, column: Int, clickedSquare: Option[Piece]): Unit = {
+    val powerUpType = this.placementForPowerUp.get
+    clickedSquare match {
+      case None =>
+        if (!isCenter(row, column) && !isCorner(row, column)) {
+          println("New soldier is placed")
+          val newSoldier = new Soldier(row, column, this.currentPlayer)
+
+          // Add to board
+          this.logicGrid.addPiece(newSoldier, row, column)
+          this.panel.addDrawables(List(newSoldier).asJava)
+          this.panel.repaint()
+
+          // Start timer
+          this.activeTimers += (newSoldier -> (3, this.currentPlayer))
+
+          // Use charge (power up)
+          this.consumePowerUp(powerUpType)
+
+          // Reset
+          this.placementForPowerUp = None
+          this.deselectPieceAndRepaint(this.selectedPiece.get)
+
+          // Switch turns
+          this.endTurn()
+        }
+
+      case _ =>
+        this.cancelPowerUpAction("Invalid location")
+        this.placementForPowerUp = None
+        this.deselectPieceAndRepaint(this.selectedPiece.get)
+    }
+  }
 
 
   /** Check if a move is valid */
