@@ -524,6 +524,14 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
         case powerups.PowerUpType.Exterminate => new Exterminate(piece)
         //case powerups.PowerUpType.TemporarySoldier => new TemporarySoldier(piece)
       }
+      // MOVE TIMER!
+      if (this.activeTimers.contains(piece)) {
+        val timerInfo = this.activeTimers(piece)
+
+        this.activeTimers = this.activeTimers - piece
+        this.activeTimers = this.activeTimers + (poweredPiece -> timerInfo)
+      }
+
 
       this.replacePiece(piece, poweredPiece)
       this.selectPieceAndRepaint(poweredPiece)
@@ -538,6 +546,16 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
   private def revertPowerUp(poweredPiece: powerups.PowerUp): Piece = {
     val originalPiece = poweredPiece.power // origninal piece
+
+    // GIVES TIMER BACK
+    if (this.activeTimers.contains(poweredPiece)) {
+      val timerInfo = this.activeTimers(poweredPiece)
+
+      this.activeTimers = this.activeTimers - poweredPiece
+      this.activeTimers = this.activeTimers + (originalPiece -> timerInfo)
+    }
+
+    // Put original piece on the board
     this.logicGrid.addPiece(originalPiece, poweredPiece.row, poweredPiece.column)
     this.panel.removeDrawable(poweredPiece)
     this.panel.addDrawables(List(originalPiece).asJava)
