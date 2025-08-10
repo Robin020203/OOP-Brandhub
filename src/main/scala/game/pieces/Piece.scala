@@ -63,6 +63,11 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
       case _ =>
         baseColor
     }
+    val finalColor = if (isMarkedForExtermination) {
+      playerColor.darker()
+    } else {
+      playerColor
+    }
 
     // Border width and color (other color if it's selected)
     g.setStroke(new BasicStroke(8))
@@ -74,7 +79,7 @@ abstract class Piece(var row: Int, var column: Int, var isSelected: Boolean = fa
     g.drawOval(x, y, size, size)
 
     // Fill circle and draw image
-    g.setColor(playerColor)
+    g.setColor(finalColor)
     g.fillOval(x, y, size, size)
     g.drawImage(loadedImage, x, y, size, size, null)
   }

@@ -270,8 +270,10 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           // Replace original piece by powered piece
           this.replacePiece(targetPiece, exterminatedPiece)
 
+          // BUG FIX?
+          val pieceOnGrid = this.logicGrid.getPiece(exterminatedPiece.row, exterminatedPiece.column).get
           // Add to timer map
-          this.activeTimers = this.activeTimers + (exterminatedPiece -> (3, this.currentPlayer))
+          this.activeTimers = this.activeTimers + (pieceOnGrid -> (3, this.currentPlayer))
 
           // Use power up
           this.consumePowerUp(powerUpType)
@@ -302,6 +304,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
         if (!isCenter(row, column) && !isCorner(row, column)) {
           println("New soldier is placed")
           val newSoldier = new Soldier(row, column, this.currentPlayer)
+          newSoldier.isMarkedForExtermination = true
 
           // Add to board
           this.logicGrid.addPiece(newSoldier, row, column)
