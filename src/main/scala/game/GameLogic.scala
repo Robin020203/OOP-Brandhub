@@ -16,7 +16,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   var selectedPiece: Option[Piece] = None // Can change to Some(piece) or None
   var captureEffects: List[CaptureEffect] = List() // Can change to List of effects
   var isGameOver: Boolean = false // Can change to true
-
+  
   // To keep track if someone is placing an extra soldier
   var placementForPowerUp: Option[powerups.PowerUpType] = None
   // To keep track if someone is choosing a target for exterminate
@@ -437,15 +437,22 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     var activePowerUps = Set[powerups.PowerUpType]()
 
     selectedPiece.foreach { piece =>
-      // Only if piece is a soldier or already has a power up
-      if (piece.isInstanceOf[Soldier] || piece.isInstanceOf[powerups.PowerUp]) {
-        activePowerUps = powerups.PowerUpType.values.toSet
-      } else { // None or King
-        activePowerUps = Set.empty
+      // Only if piece is a soldier or already has a power up, and there are power ups left
+      //if (piece.isInstanceOf[Soldier] || piece.isInstanceOf[powerups.PowerUp]) {
+      if (piece.canReceivePowerUp) {
+        val allPowerUpTypes = powerups.PowerUpType.values
+        //activePowerUps = powerups.PowerUpType.values.toSet
+        activePowerUps = allPowerUpTypes.filter {
+          powerUpType =>
+            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+            count > 0
+        }.toSet
       }
-      // TODO (currently activates all powerups)
+      // Else Set stays empty
     }
+    // Filtered set
     this.powerUpSelector.activePowerUps = activePowerUps
+    this.panel.repaint()
   }
 
   /** Removes active power ups from player*/
