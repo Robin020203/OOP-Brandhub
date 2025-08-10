@@ -6,7 +6,6 @@ import game.Grid
 import game.pieces.Player.{Attacker, Defender}
 import game.effects.CaptureEffect
 import game.powerups.{DiagonalMove, Exterminate, Leap}
-
 import scala.jdk.CollectionConverters.*
 
 
@@ -66,16 +65,12 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
   def selectSquare(row: Int, column: Int): Unit =
     // Remove previous effects (from UI)
-    this.captureEffects.foreach {
-      effect =>
-        this.panel.removeDrawable(effect)
-    }
+    this.captureEffects.foreach { effect => this.panel.removeDrawable(effect)}
     this.captureEffects = List() // Empty again
 
     // GAME OVER, selectSquare logic isn't relevant anymore
-    if (this.isGameOver) {
-      return
-    }
+    if (this.isGameOver) {return}
+
     // What is on the selected square
     val clickedSquare = this.logicGrid.getPiece(row, column)
 
@@ -86,171 +81,188 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
     if (this.placementForPowerUp.isDefined) {
       this.executePlacementForPowerUp(row, column, clickedSquare)
+      return
     }
 
     this.selectedPiece match {
       // No piece selected yet, new click as selection attempt
       case None =>
-        // Clicked on a piece field
-        clickedSquare match {
-          // Clicked on a valid piece from own team (select piece)
-          case Some(piece) =>
-            if (piece.player == this.currentPlayer) {
-              this.selectedPiece = Some(piece)
-              piece.isSelected = true
-              this.updatePowerUpStatus(Some(piece))
-              this.panel.repaint()
-              println(s"Player ${this.currentPlayer} selected piece on [${piece.row}, ${piece.column}]")
-            }
-            // Clicked on an invalid piece from opponent (don't select piece)
-            else {
-              this.selectedPiece = None
-              println(s"Player ${this.currentPlayer} selected WRONG piece on [${piece.row}, ${piece.column}], it's player ${this.currentPlayer}'s turn!")
-            }
-          // Clicked on an empty field (no piece) => do nothing
-          case None =>
-            this.selectedPiece = None
-            println(s"Player ${this.currentPlayer} selected an empty field")
-
-        }
-
-      // A piece is already selected, new click as selection attempt
+        executeNoSelection(clickedSquare)
+      // A piece was already selected (s_piece), new click as selection attempt
       case Some(s_piece) =>
-        // deactivate all power ups (choise phase over)
-        this.updatePowerUpStatus(None)
-
-        // 1) UI bar => power up bar
-        if (row >= this.gameRows) {
-          // King can not get a power up
-          if (!s_piece.canReceivePowerUp) {
-            println("Only Soldiers can receive power ups")
-            this.deselectPieceAndRepaint(s_piece)
-            return
-          }
-          val allPowerUpTypes = powerups.PowerUpType.values
-          if (column < allPowerUpTypes.length) {
-            val powerUpType = allPowerUpTypes(column)
-
-            powerUpType match {
-              // Diagonal Move power up
-              case powerups.PowerUpType.DiagonalMove =>
-                this.tryActivatePowerUp(s_piece, powerups.PowerUpType.DiagonalMove)
-                return
-              // Leap power up
-              case powerups.PowerUpType.Leap =>
-                this.tryActivatePowerUp(s_piece, powerups.PowerUpType.Leap)
-                return
-              // Exterminate power up
-              case powerups.PowerUpType.Exterminate =>
-                val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-                if (count > 0) {
-                  println("Exterminate activated, select an enemy Soldier")
-                  this.targetingPowerUp = Some(powerups.PowerUpType.Exterminate)
-                } else {
-                  println("No Exterminate power up left")
-                }
-                return
-              // Extra soldier power up
-              case powerups.PowerUpType.TemporarySoldier =>
-                val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
-                if (count > 0) {
-                  println("Extra soldier activated, select an empty square to place")
-                  this.placementForPowerUp = Some(powerups.PowerUpType.TemporarySoldier)
-                } else {
-                  println("No Exterminate power up left")
-                }
-                return
-              // Other power ups
-              case _ =>
-                println(s"Action for '${powerUpType.displayName}' not implemented yet.")
-            }
-          }
-        } else { // Not in the UI bar, so on the game board
-
-
-          clickedSquare match {
-            // Clicked on an other piece (cancel selection)
-            case Some(piece) =>
-              println(s"Selection canceled: Player ${this.currentPlayer} selected a non-empty field")
-              val pieceToReset: Piece = s_piece match {
-                // It was a powered up piece, so reset power
-                case powered: powerups.PowerUp =>
-                  this.revertPowerUp(powered)
-                // Normal selection, so nothing to change
-                case notPowered =>
-                  notPowered
-              }
-              // In both cases, the piece gets deselected
-              this.deselectPieceAndRepaint(pieceToReset)
-
-            // Click on an empty cell
-            case None =>
-              // Only if valid move, move the piece
-              if (this.isValidMove(s_piece, row, column)) {
-                println(s"Moved to[$row, $column]")
-
-                // Store what we have to keep
-                val pieceToKeep: Piece = s_piece match {
-                  // if s_piece is a powered piece
-                  case powered: powerups.PowerUp =>
-                    powered.powerUpType match {
-                      // Only in case of Exterminate, keep the effect
-                      case powerups.PowerUpType.Exterminate =>
-                        powered
-                      case _ =>
-                        this.consumeAndRevertPowerUp(powered)
-                    }
-
-                  case notPowered =>
-                    notPowered // Normal move, so keep normal piece without changes
-
-                }
-
-                // Move piece on the board
-                this.executeMove(s_piece, pieceToKeep, row, column)
-                pieceToKeep.isSelected = false
-
-                // CAPTURES? A piece is moved, so check if there are captures
-                this.checkCaptures(pieceToKeep)
-                // GAME OVER?
-                this.checkGameOver()
-                // TODO: WHAT IF GAME OVER?
-
-                // If not game over
-                if (!this.isGameOver) {
-                  // Switch turns
-                  this.endTurn()
-                }
-                // deselect the piece and repaint panel
-                this.deselectPieceAndRepaint(pieceToKeep)
-
-              }
-              // Not a valid move so don't move
-              else {
-                println("Invalid move")
-                val pieceToReset: Piece = s_piece match {
-                  case powered: powerups.PowerUp =>
-                    powered.powerUpType match {
-                      case powerups.PowerUpType.DiagonalMove | powerups.PowerUpType.Leap =>
-                        this.consumeAndRevertPowerUp(powered)
-                      case _ =>
-                        powered
-                    }
-                  case notPowered =>
-                    notPowered
-                }
-                // We always deselect the piece and repaint (whether it's a valid move or not)
-                this.deselectPieceAndRepaint(pieceToReset)
-              }
-
-          } // end 2nd click
-        } // Some(s_piece) else finished (if it was not in UI)
-
-
+        executeWithSelection(s_piece, row, column, clickedSquare)
     }
     // after selectedPiece match (print status after every click)
     println(s"clicked on field: [$row , $column]. Current player: ${this.currentPlayer}")
 
+
+  /** Executes whole action when a piece is already selected (s_piece)
+   * row, column and clickedSquare are from the new clicked Square */
+
+  private def executeWithSelection(s_piece: Piece, row: Int, column: Int, clickedSquare: Option[Piece]): Unit = {
+    // deactivate all power ups (choise phase over)
+    this.updatePowerUpStatus(None)
+
+    // 1) UI bar => power up bar
+    if (row >= this.gameRows) {
+      // King can not get a power up
+      if (!s_piece.canReceivePowerUp) {
+        println("Only Soldiers can receive power ups")
+        this.deselectPieceAndRepaint(s_piece)
+        return
+      }
+      val allPowerUpTypes = powerups.PowerUpType.values
+      if (column < allPowerUpTypes.length) {
+        val powerUpType = allPowerUpTypes(column)
+
+        powerUpType match {
+          // Diagonal Move power up
+          case powerups.PowerUpType.DiagonalMove =>
+            this.tryActivatePowerUp(s_piece, powerups.PowerUpType.DiagonalMove)
+            return
+          // Leap power up
+          case powerups.PowerUpType.Leap =>
+            this.tryActivatePowerUp(s_piece, powerups.PowerUpType.Leap)
+            return
+          // Exterminate power up
+          case powerups.PowerUpType.Exterminate =>
+            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+            if (count > 0) {
+              println("Exterminate activated, select an enemy Soldier")
+              this.targetingPowerUp = Some(powerups.PowerUpType.Exterminate)
+            } else {
+              println("No Exterminate power up left")
+            }
+            return
+          // Extra soldier power up
+          case powerups.PowerUpType.TemporarySoldier =>
+            val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
+            if (count > 0) {
+              println("Extra soldier activated, select an empty square to place")
+              this.placementForPowerUp = Some(powerups.PowerUpType.TemporarySoldier)
+            } else {
+              println("No Exterminate power up left")
+            }
+            return
+          // Other power ups
+          case _ =>
+            println(s"Action for '${powerUpType.displayName}' not implemented yet.")
+        }
+      }
+    } else { // Not in the UI bar, so on the game board
+
+
+      clickedSquare match {
+        // Clicked on an other piece (cancel selection)
+        case Some(piece) =>
+          println(s"Selection canceled: Player ${this.currentPlayer} selected a non-empty field")
+          val pieceToReset: Piece = s_piece match {
+            // It was a powered up piece, so reset power
+            case powered: powerups.PowerUp =>
+              this.revertPowerUp(powered)
+            // Normal selection, so nothing to change
+            case notPowered =>
+              notPowered
+          }
+          // In both cases, the piece gets deselected
+          this.deselectPieceAndRepaint(pieceToReset)
+
+        // Click on an empty cell
+        case None =>
+          // Only if valid move, move the piece
+          if (this.isValidMove(s_piece, row, column)) {
+            println(s"Moved to[$row, $column]")
+
+            // Store what we have to keep
+            val pieceToKeep: Piece = s_piece match {
+              // if s_piece is a powered piece
+              case powered: powerups.PowerUp =>
+                powered.powerUpType match {
+                  // Only in case of Exterminate, keep the effect
+                  case powerups.PowerUpType.Exterminate =>
+                    powered
+                  case _ =>
+                    this.consumeAndRevertPowerUp(powered)
+                }
+
+              case notPowered =>
+                notPowered // Normal move, so keep normal piece without changes
+
+            }
+
+            // Move piece on the board
+            this.executeMove(s_piece, pieceToKeep, row, column)
+            pieceToKeep.isSelected = false
+
+            // CAPTURES? A piece is moved, so check if there are captures
+            this.checkCaptures(pieceToKeep)
+            // GAME OVER?
+            this.checkGameOver()
+            // TODO: WHAT IF GAME OVER?
+
+            // If not game over
+            if (!this.isGameOver) {
+              // Switch turns
+              this.endTurn()
+            }
+            // deselect the piece and repaint panel
+            this.deselectPieceAndRepaint(pieceToKeep)
+
+          }
+          // Not a valid move so don't move
+          else {
+            println("Invalid move")
+            val pieceToReset: Piece = s_piece match {
+              case powered: powerups.PowerUp =>
+                powered.powerUpType match {
+                  case powerups.PowerUpType.DiagonalMove | powerups.PowerUpType.Leap =>
+                    this.consumeAndRevertPowerUp(powered)
+                  case _ =>
+                    powered
+                }
+              case notPowered =>
+                notPowered
+            }
+            // We always deselect the piece and repaint (whether it's a valid move or not)
+            this.deselectPieceAndRepaint(pieceToReset)
+          }
+
+      } // end 2nd click
+    } // Some(s_piece) else finished (if it was not in UI)
+  }
+
+
+  /** Executes whole action when no piece is already selected
+   * clickedSquare is the new clicked Square */
+
+  private def executeNoSelection(clickedSquare: Option[Piece]): Unit = {
+    // Clicked on a piece field
+    clickedSquare match {
+      // Clicked on a valid piece from own team (select piece)
+      case Some(piece) =>
+        if (piece.player == this.currentPlayer) {
+          this.selectedPiece = Some(piece)
+          piece.isSelected = true
+          this.updatePowerUpStatus(Some(piece))
+          this.panel.repaint()
+          println(s"Player ${this.currentPlayer} selected piece on [${piece.row}, ${piece.column}]")
+        }
+        // Clicked on an invalid piece from opponent (don't select piece)
+        else {
+          this.selectedPiece = None
+          println(s"Player ${this.currentPlayer} selected WRONG piece on [${piece.row}, ${piece.column}], it's player ${this.currentPlayer}'s turn!")
+        }
+      // Clicked on an empty field (no piece) => do nothing
+      case None =>
+        this.selectedPiece = None
+        println(s"Player ${this.currentPlayer} selected an empty field")
+
+    }
+  }
+
+
+  /** Executes action when a player targets an enemy with a power up
+   * clickedSquare is the new clicked Square */
 
   private def executeTargetingPowerUp(clickedSquare: Option[Piece]): Unit = {
     val powerUpType = this.targetingPowerUp.get
@@ -288,6 +300,10 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
         this.deselectPieceAndRepaint(this.selectedPiece.get) //
     }
   }
+
+
+  /** Executes action to place a new piece on the board for a power up
+   * row, column and clickedSquare are from the new clicked Square */
 
   private def executePlacementForPowerUp(row: Int, column: Int, clickedSquare: Option[Piece]): Unit = {
     val powerUpType = this.placementForPowerUp.get
@@ -562,7 +578,6 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     // Reset piece with other helper function
     this.revertPowerUp(poweredPiece)
   }
-
 
 
   /** Makes a move on the Grid and in the UI
