@@ -74,11 +74,12 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     // What is on the selected square
     val clickedSquare = this.logicGrid.getPiece(row, column)
 
+    // Someone is choosing a target (to exterminate)
     if (this.targetingPowerUp.isDefined) {
       this.executeTargetingPowerUp(clickedSquare)
       return
     }
-
+    // Someone is choosing a place (to add an extra soldier)
     if (this.placementForPowerUp.isDefined) {
       this.executePlacementForPowerUp(row, column, clickedSquare)
       return
@@ -87,10 +88,10 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
     this.selectedPiece match {
       // No piece selected yet, new click as selection attempt
       case None =>
-        executeNoSelection(clickedSquare)
+        this.executeNoSelection(clickedSquare)
       // A piece was already selected (s_piece), new click as selection attempt
       case Some(s_piece) =>
-        executeWithSelection(s_piece, row, column, clickedSquare)
+        this.executeWithSelection(s_piece, row, column, clickedSquare)
     }
     // after selectedPiece match (print status after every click)
     println(s"clicked on field: [$row , $column]. Current player: ${this.currentPlayer}")
@@ -124,7 +125,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           case powerups.PowerUpType.Leap =>
             this.tryActivatePowerUp(s_piece, powerups.PowerUpType.Leap)
             return
-          // Exterminate power up
+          // Exterminate power up (tryActivatePowerUp not applicable)
           case powerups.PowerUpType.Exterminate =>
             val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
             if (count > 0) {
@@ -134,7 +135,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               println("No Exterminate power up left")
             }
             return
-          // Extra soldier power up
+          // Extra soldier power up (tryActivatePowerUp not applicable)
           case powerups.PowerUpType.TemporarySoldier =>
             val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
             if (count > 0) {
@@ -144,12 +145,12 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               println("No Exterminate power up left")
             }
             return
-          // Other power ups
+          // Other power ups (if this game gets expanded)
           case _ =>
             println(s"Action for '${powerUpType.displayName}' not implemented yet.")
         }
       }
-    } else { // Not in the UI bar, so on the game board
+    } else { // 2) Not in the UI bar, so on the game board
 
 
       clickedSquare match {
@@ -179,33 +180,24 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
               case powered: powerups.PowerUp =>
                 powered.powerUpType match {
                   // Only in case of Exterminate, keep the effect
-                  case powerups.PowerUpType.Exterminate =>
-                    powered
-                  case _ =>
-                    this.consumeAndRevertPowerUp(powered)
+                  case powerups.PowerUpType.Exterminate => powered
+                  case _ => this.consumeAndRevertPowerUp(powered)
                 }
-
               case notPowered =>
                 notPowered // Normal move, so keep normal piece without changes
-
             }
 
             // Move piece on the board
             this.executeMove(s_piece, pieceToKeep, row, column)
             pieceToKeep.isSelected = false
 
-            // CAPTURES? A piece is moved, so check if there are captures
+            // A Piece is moved so check CAPTURES and GAME OVER
             this.checkCaptures(pieceToKeep)
-            // GAME OVER?
             this.checkGameOver()
             // TODO: WHAT IF GAME OVER?
 
-            // If not game over
-            if (!this.isGameOver) {
-              // Switch turns
-              this.endTurn()
-            }
-            // deselect the piece and repaint panel
+            // If not game over switch turns, deselect the piece and repaint panel
+            if (!this.isGameOver) {this.endTurn()}
             this.deselectPieceAndRepaint(pieceToKeep)
 
           }
@@ -217,8 +209,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
                 powered.powerUpType match {
                   case powerups.PowerUpType.DiagonalMove | powerups.PowerUpType.Leap =>
                     this.consumeAndRevertPowerUp(powered)
-                  case _ =>
-                    powered
+                  case _ => powered
                 }
               case notPowered =>
                 notPowered
@@ -226,19 +217,18 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
             // We always deselect the piece and repaint (whether it's a valid move or not)
             this.deselectPieceAndRepaint(pieceToReset)
           }
-
       } // end 2nd click
     } // Some(s_piece) else finished (if it was not in UI)
   }
 
 
-  /** Executes whole action when no piece is already selected
+  /** Executes whole action when there is no piece already selected
    * clickedSquare is the new clicked Square */
 
   private def executeNoSelection(clickedSquare: Option[Piece]): Unit = {
     // Clicked on a piece field
     clickedSquare match {
-      // Clicked on a valid piece from own team (select piece)
+      // SELECT PIECE: Clicked on a valid piece from own team
       case Some(piece) =>
         if (piece.player == this.currentPlayer) {
           this.selectedPiece = Some(piece)
@@ -247,12 +237,12 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           this.panel.repaint()
           println(s"Player ${this.currentPlayer} selected piece on [${piece.row}, ${piece.column}]")
         }
-        // Clicked on an invalid piece from opponent (don't select piece)
+        // DON'T SELECT PIECE: Clicked on an invalid piece from opponent
         else {
           this.selectedPiece = None
           println(s"Player ${this.currentPlayer} selected WRONG piece on [${piece.row}, ${piece.column}], it's player ${this.currentPlayer}'s turn!")
         }
-      // Clicked on an empty field (no piece) => do nothing
+      // DON'T SELECT: Clicked on an empty field (no piece)
       case None =>
         this.selectedPiece = None
         println(s"Player ${this.currentPlayer} selected an empty field")
@@ -274,6 +264,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           println("Valid target selected")
           targetPiece.isMarkedForExtermination = true
 
+          // TODO: if-test needed if there are more targeting power ups
           // New powered piece
           val exterminatedPiece = new Exterminate(targetPiece)
           // Replace original piece by powered piece
@@ -285,11 +276,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           // Use power up
           this.consumePowerUp(powerUpType)
 
-          // Reset targeting mode and selection
+          // Reset targeting mode and selection, and switch turn
           this.targetingPowerUp = None
-          this.deselectPieceAndRepaint(this.selectedPiece.get) //
-
-          // Switch turn
+          this.deselectPieceAndRepaint(this.selectedPiece.get)
           this.endTurn()
         }
 
@@ -297,7 +286,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
       case _ =>
         this.cancelPowerUpAction("Invalid target")
         this.targetingPowerUp = None
-        this.deselectPieceAndRepaint(this.selectedPiece.get) //
+        this.deselectPieceAndRepaint(this.selectedPiece.get) // selected piece is defined so .get works
     }
   }
 
@@ -307,6 +296,7 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
 
   private def executePlacementForPowerUp(row: Int, column: Int, clickedSquare: Option[Piece]): Unit = {
     val powerUpType = this.placementForPowerUp.get
+
     clickedSquare match {
       case None =>
         if (!isCenter(row, column) && !isCorner(row, column)) {
@@ -324,11 +314,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
           // Use charge (power up)
           this.consumePowerUp(powerUpType)
 
-          // Reset
+          // Reset and switch turn
           this.placementForPowerUp = None
-          this.deselectPieceAndRepaint(this.selectedPiece.get)
-
-          // Switch turns
+          this.deselectPieceAndRepaint(this.selectedPiece.get) // selected piece is defined so .get works
           this.endTurn()
         }
 
@@ -429,7 +417,6 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   private def checkGameOver(): Unit = {
     val kingPos = this.logicGrid.allPieces().find(piece => piece.isInstanceOf[King])
 
-
     // DEFENDER WINS
     kingPos.foreach {
       king =>
@@ -523,7 +510,8 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   }
 
 
-  /** Can activate a power up if there are >0 left */
+  /** Can activate a power up if there are >0 left
+   * ONLY if it is a direct power up and there is no extra action needed */
 
   private def tryActivatePowerUp(piece: Piece, powerUpType: powerups.PowerUpType): Unit = {
     val count = this.powerUpCounts.getOrElse((this.currentPlayer, powerUpType), 0)
@@ -599,49 +587,55 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   /** Updates all active timers */
 
   private def updateTimers(): Unit = {
+    // Map to keep track of timers of next round (to update)
     var nextTurnTimers: Map[Piece, (Int, Player)] = Map()
     var expiredPieces: List[Piece] = List()
     val nextPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
 
+    // For each timer that is active
     this.activeTimers.foreach {
       case (piece, (turnsLeft, initPlayer)) =>
-        // Round over?
+        // Timer only counts down if it's not the player's turn who started the timer
         if (nextPlayer != initPlayer) {
           if (turnsLeft > 0) {
             nextTurnTimers = nextTurnTimers + (piece -> (turnsLeft - 1, initPlayer))
           } else {
-            // Timer ran out
+            // Timer ran out (turnsLeft <= 0)
             expiredPieces = piece :: expiredPieces
           }
 
         } else {
-          // Opponent's turn, remains stays the same
+          // Turn of player who started the timer, remains stays the same
           nextTurnTimers = nextTurnTimers + (piece -> (turnsLeft, initPlayer))
         }
     }
 
+    // Change timers with updated timers
     this.activeTimers = nextTurnTimers
 
+    // Remove all expired pieces
     expiredPieces.foreach {
       piece =>
         println(s"Timer ran out, piece at [${piece.row}, ${piece.column}] removed")
         //this.logicGrid.removePiece(piece.row, piece.column)
         //this.panel.removeDrawable(piece)
         this.logicGrid.getPiece(piece.row, piece.column) match {
+          // If there is a piece, remove it
           case Some(currentPiece) =>
             this.logicGrid.removePiece(piece.row, piece.column)
             this.panel.removeDrawable(currentPiece)
           case None =>
-            // als er niets meer in het grid staat, toch nog proberen oude referentie weg te halen
+            // If nothing left in grid, still try to remove
             this.panel.removeDrawable(piece)
         }
 
-
+        // TODO: Other effect if timer runs out?
         // Same capture-effect as normal death
         val effect = new CaptureEffect(piece.row, piece.column)
         this.panel.addDrawables(List(effect).asJava)
         this.captureEffects = effect :: this.captureEffects
     }
+    // If there was a change, repaint panel
     if (expiredPieces.nonEmpty) this.panel.repaint()
   }
 
@@ -649,7 +643,9 @@ class GameLogic(val logicGrid: Grid[Piece], val panel: GridPanel, val gameRows: 
   /** End a player's turn */
 
   private def endTurn(): Unit = {
+    // Update timers
     this.updateTimers()
+    // Switch turns
     this.currentPlayer = if (this.currentPlayer == Player.Attacker) Player.Defender else Player.Attacker
     println(s"Next turn: Player ${this.currentPlayer}")
   }
