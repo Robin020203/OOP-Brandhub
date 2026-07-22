@@ -2,6 +2,13 @@
 
 A strategy game based on Brandhub, expanded with a power up system.
 
+## Install and play (IntelliJ IDEA)
+1. Unpack ZIP-file
+2. Open **IntelliJ IDEA** & Open unpacked ZIP-file (or drag it to the screen)
+3. Navigate in *Project tool window* to `src/main/scala/game/Main.scala`.
+5. Click on the green playbutton (Run) next to `object HiveGame` to load the grafic interface.
+
+
 ## Known Issue: Visuals of 'Timed Pieces' are not removed correctly when they use an other power up
 
 There is a recurring visual bug concerning pieces that are given a temporary lifespan via a power-up.
